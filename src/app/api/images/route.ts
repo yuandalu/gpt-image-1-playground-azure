@@ -98,9 +98,16 @@ export async function POST(request: NextRequest) {
             output_format: params.output_format,
             background: params.background,
             moderation: params.moderation,
-          })
+          }),
+          signal: AbortSignal.timeout(300000)
         }
-      ).then(res => res.json());
+      ).then(async (res) => {
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(`API request failed: ${res.status} ${res.statusText}${errorData.error ? ` - ${errorData.error}` : ''}`);
+        }
+        return res.json();
+      });
 
     } else if (mode === 'edit') {
       const n = parseInt(formData.get('n') as string || '1', 10);
@@ -163,9 +170,16 @@ export async function POST(request: NextRequest) {
           headers: {
             "api-key": process.env.API_KEY || ''
           },
-          body: editFormData
+          body: editFormData,
+          signal: AbortSignal.timeout(300000)
         }
-      ).then(res => res.json());
+      ).then(async (res) => {
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(`API request failed: ${res.status} ${res.statusText}${errorData.error ? ` - ${errorData.error}` : ''}`);
+        }
+        return res.json();
+      });
 
     } else {
       return NextResponse.json({ error: 'Invalid mode specified' }, { status: 400 });
