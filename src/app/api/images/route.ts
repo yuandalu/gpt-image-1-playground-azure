@@ -4,12 +4,6 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const outputDir = path.resolve(process.cwd(), 'generated-images');
-// Increase timeout to 5 minutes (300000ms)
-const API_TIMEOUT = 300000;
-// Maximum number of retries for API calls
-const MAX_RETRIES = 3;
-// Delay between retries in milliseconds
-const RETRY_DELAY = 2000;
 
 async function ensureOutputDirExists() {
   try {
@@ -27,24 +21,6 @@ async function ensureOutputDirExists() {
       console.error(`Error accessing output directory ${outputDir}:`, error);
       throw new Error(`Failed to access or ensure image output directory exists. Original error: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }
-}
-
-// Helper function to implement retry logic
-async function fetchWithRetry(url: string, options: RequestInit, retries = MAX_RETRIES): Promise<Response> {
-  try {
-    return await fetch(url, options);
-  } catch (error) {
-    if (retries > 0 && (error instanceof Error && 
-        (error.message.includes('timeout') || 
-         error.message.includes('network') || 
-         error.message.includes('connect')))) {
-      console.log(`API call failed, retrying (${MAX_RETRIES - retries + 1}/${MAX_RETRIES})...`);
-      // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-      return fetchWithRetry(url, options, retries - 1);
-    }
-    throw error;
   }
 }
 
@@ -106,43 +82,25 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('Calling OpenAI generate with params:', params);
-      
-      try {
-        const response = await fetchWithRetry(
-          `${process.env.API_BASE_URL}/images/generations?api-version=${process.env.API_VERSION}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'api-key': process.env.API_KEY || ''
-            },
-            body: JSON.stringify({
-              prompt: params.prompt,
-              size: params.size,
-              quality: params.quality,
-              n: params.n,
-              output_format: params.output_format,
-              background: params.background,
-              moderation: params.moderation,
-            }),
-            signal: AbortSignal.timeout(API_TIMEOUT)
-          }
-        );
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(`API request failed: ${response.status} ${response.statusText}${errorData.error ? ` - ${errorData.error}` : ''}`);
+      result = await fetch(
+        `${process.env.API_BASE_URL}/images/generations?api-version=${process.env.API_VERSION}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'api-key': process.env.API_KEY || ''
+          },
+          body: JSON.stringify({
+            prompt: params.prompt,
+            size: params.size,
+            quality: params.quality,
+            n: params.n,
+            output_format: params.output_format,
+            background: params.background,
+            moderation: params.moderation,
+          })
         }
-        result = await response.json();
-      } catch (fetchError) {
-        console.error('Error during API fetch:', fetchError);
-        if (fetchError instanceof Error) {
-          if (fetchError.message.includes('timeout') || fetchError.message.includes('AbortSignal')) {
-            throw new Error(`Request timed out after ${API_TIMEOUT/1000} seconds. Please try again.`);
-          }
-        }
-        throw fetchError;
-      }
+      ).then(res => res.json());
 
     } else if (mode === 'edit') {
       const n = parseInt(formData.get('n') as string || '1', 10);
@@ -198,33 +156,16 @@ export async function POST(request: NextRequest) {
         editFormData.append('mask', maskFile);
       }
 
-      try {
-        const response = await fetchWithRetry(
-          `${process.env.API_BASE_URL}/images/edits?api-version=${process.env.API_VERSION}`,
-          {
-            method: "POST",
-            headers: {
-              "api-key": process.env.API_KEY || ''
-            },
-            body: editFormData,
-            signal: AbortSignal.timeout(API_TIMEOUT)
-          }
-        );
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(`API request failed: ${response.status} ${response.statusText}${errorData.error ? ` - ${errorData.error}` : ''}`);
+      result = await fetch(
+        `${process.env.API_BASE_URL}/images/edits?api-version=${process.env.API_VERSION}`,
+        {
+          method: "POST",
+          headers: {
+            "api-key": process.env.API_KEY || ''
+          },
+          body: editFormData
         }
-        result = await response.json();
-      } catch (fetchError) {
-        console.error('Error during API fetch:', fetchError);
-        if (fetchError instanceof Error) {
-          if (fetchError.message.includes('timeout') || fetchError.message.includes('AbortSignal')) {
-            throw new Error(`Request timed out after ${API_TIMEOUT/1000} seconds. Please try again.`);
-          }
-        }
-        throw fetchError;
-      }
+      ).then(res => res.json());
 
     } else {
       return NextResponse.json({ error: 'Invalid mode specified' }, { status: 400 });
@@ -278,16 +219,6 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof Error) {
       errorMessage = error.message;
-      
-      // Handle specific error types
-      if (error.message.includes('timeout') || error.message.includes('AbortSignal')) {
-        errorMessage = `Request timed out. The server took too long to respond. Please try again.`;
-        status = 504; // Gateway Timeout
-      } else if (error.message.includes('network') || error.message.includes('connect')) {
-        errorMessage = `Network error: Unable to connect to the image generation service. Please check your internet connection and try again.`;
-        status = 503; // Service Unavailable
-      }
-      
       if (typeof error === 'object' && error !== null && 'status' in error && typeof error.status === 'number') {
         status = error.status;
       }
