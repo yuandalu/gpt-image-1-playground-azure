@@ -54,21 +54,14 @@ You need an OpenAI API key to use this application.
 2.  Add your OpenAI API key to the `.env.local` file:
 
     ```dotenv
-    OPENAI_API_KEY=your_openai_api_key_here
+    API_KEY=your_azure_api_key_here
+    // https://xxx.azure.com/openai/deployments/gpt-image-1/
+    API_BASE_URL=your_azure_api_base_url_here
+    // 2025-04-01-preview
+    API_VERSION=your_azure_api_version_here
     ```
 
     **Important:** Keep your API key secret. The `.env.local` file is included in `.gitignore` by default to prevent accidental commits.
-
-### (Optional) Use a Custom API Endpoint
-
-If you need to use an OpenAI-compatible API endpoint (e.g., a local model server or a different provider), you can specify its base URL using the `OPENAI_API_BASE_URL` environment variable in your `.env.local` file:
-
-```dotenv
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_API_BASE_URL=your_compatible_api_endpoint_here
-```
-
-If `OPENAI_API_BASE_URL` is not set, the application will default to the standard OpenAI API endpoint.
 
 
 ### 2. Install Dependencies
