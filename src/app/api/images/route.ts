@@ -146,9 +146,9 @@ export async function POST(request: NextRequest) {
       if (params.size) editFormData.append('size', params.size);
       if (params.quality) editFormData.append('quality', params.quality);
       
-      // Append each image file
+      // Append each image file with array syntax
       imageFiles.forEach(file => {
-        editFormData.append('image', file);
+        editFormData.append('image[]', file);
       });
       
       // Append mask if exists
